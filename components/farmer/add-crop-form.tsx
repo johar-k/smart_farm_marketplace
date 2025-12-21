@@ -1,17 +1,29 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useLanguage } from "@/lib/language-context"
 
+import { auth, db } from "../dashboards/firebase/config"
+import { addDoc, collection, serverTimestamp } from "firebase/firestore"
+
+type AddCropFormData = {
+  cropType: string
+  region: string
+  season: string
+  quantity: string
+  quality: string
+  basePrice: string
+}
+
 export default function AddCropForm() {
   const { t } = useLanguage()
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<AddCropFormData>({
     cropType: "",
     region: "",
     season: "",
@@ -20,107 +32,169 @@ export default function AddCropForm() {
     basePrice: "",
   })
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const [loading, setLoading] = useState(false)
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Crop added:", formData)
-    setFormData({ cropType: "", region: "", season: "", quantity: "", quality: "", basePrice: "" })
+
+    const user = auth.currentUser
+    if (!user) {
+      alert("You must be logged in")
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      await addDoc(collection(db, "crops"), {
+        farmerId: user.uid,                 // 🔑 LINK TO FARMER
+        cropType: formData.cropType.trim(), // free text crop name
+        region: formData.region.trim(),
+        season: formData.season,
+        quantity: Number(formData.quantity),
+        quality: formData.quality,
+        basePrice: Number(formData.basePrice),
+        status: "active",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+
+      alert("Crop added successfully 🌱")
+
+      setFormData({
+        cropType: "",
+        region: "",
+        season: "",
+        quantity: "",
+        quality: "",
+        basePrice: "",
+      })
+    } catch (error) {
+      console.error("Error adding crop:", error)
+      alert("Failed to add crop")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-900">{t("addCrop.title")}</h2>
+      <h2 className="text-3xl font-bold text-gray-900">
+        {t("addCrop.title")}
+      </h2>
 
       <Card className="p-8 border-0 shadow-md max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t("addCrop.cropType")}</label>
-              <select
-                name="cropType"
-                value={formData.cropType ?? ""}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              >
-                <option value="">{t("addCrop.selectCrop")}</option>
-                <option value="wheat">{t("addCrop.wheat")}</option>
-                <option value="rice">{t("addCrop.rice")}</option>
-                <option value="cotton">{t("addCrop.cotton")}</option>
-                <option value="maize">{t("addCrop.maize")}</option>
-                <option value="sugarcane">{t("addCrop.sugarcane")}</option>
-              </select>
-            </div>
 
+            {/* Crop Name (FREE TEXT) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t("addCrop.region")}</label>
+              <label className="block text-sm font-medium mb-2">
+                {t("addCrop.cropType")}
+              </label>
               <Input
                 type="text"
-                name="region"
-                placeholder={t("addCrop.regionPlaceholder")}
-                value={formData.region ?? ""}
+                name="cropType"
+                placeholder="Enter crop name (e.g. Wheat, Onion, Chilli)"
+                value={formData.cropType}
                 onChange={handleChange}
+                required
               />
             </div>
 
+            {/* Region */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t("addCrop.season")}</label>
+              <label className="block text-sm font-medium mb-2">
+                {t("addCrop.region")}
+              </label>
+              <Input
+                name="region"
+                value={formData.region}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            {/* Season */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                {t("addCrop.season")}
+              </label>
               <select
                 name="season"
-                value={formData.season ?? ""}
+                value={formData.season}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border rounded-lg"
+                required
               >
-                <option value="">{t("addCrop.selectSeason")}</option>
-                <option value="kharif">{t("addCrop.kharif")}</option>
-                <option value="rabi">{t("addCrop.rabi")}</option>
-                <option value="summer">{t("addCrop.summer")}</option>
+                <option value="">Select</option>
+                <option value="kharif">Kharif</option>
+                <option value="rabi">Rabi</option>
+                <option value="summer">Summer</option>
               </select>
             </div>
 
+            {/* Quantity */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t("addCrop.quantity")}</label>
+              <label className="block text-sm font-medium mb-2">
+                {t("addCrop.quantity")}
+              </label>
               <Input
                 type="number"
                 name="quantity"
-                placeholder={t("addCrop.quantityPlaceholder")}
-                value={formData.quantity ?? ""}
+                value={formData.quantity}
                 onChange={handleChange}
+                required
               />
             </div>
 
+            {/* Quality */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t("addCrop.quality")}</label>
+              <label className="block text-sm font-medium mb-2">
+                {t("addCrop.quality")}
+              </label>
               <select
                 name="quality"
-                value={formData.quality ?? ""}
+                value={formData.quality}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border rounded-lg"
+                required
               >
-                <option value="">{t("addCrop.selectQuality")}</option>
-                <option value="premium">{t("addCrop.premium")}</option>
-                <option value="standard">{t("addCrop.standard")}</option>
-                <option value="economy">{t("addCrop.economy")}</option>
+                <option value="">Select</option>
+                <option value="premium">Premium</option>
+                <option value="standard">Standard</option>
+                <option value="economy">Economy</option>
               </select>
             </div>
 
+            {/* Base Price */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t("addCrop.basePrice")}</label>
+              <label className="block text-sm font-medium mb-2">
+                {t("addCrop.basePrice")}
+              </label>
               <Input
                 type="number"
                 name="basePrice"
-                placeholder={t("addCrop.basePricePlaceholder")}
-                value={formData.basePrice ?? ""}
+                value={formData.basePrice}
                 onChange={handleChange}
+                required
               />
             </div>
           </div>
 
-          <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3">
-            {t("addCrop.submitButton")}
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            {loading ? "Adding..." : t("addCrop.submitButton")}
           </Button>
         </form>
       </Card>
