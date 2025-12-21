@@ -24,13 +24,30 @@ export default function FarmerProfile() {
         return
       }
 
-      const ref = doc(db, "users", user.uid)
-      const snap = await getDoc(ref)
+      const snap = await getDoc(doc(db, "users", user.uid))
 
       if (snap.exists()) {
-        const data = snap.data() as Farmer
-        setFarmerData(data)
-        setEditData(data) // ⭐ copy for editing
+        const data = snap.data() as Partial<Farmer>
+
+        // ✅ STEP 1: NORMALIZE DATA
+        const normalized: Farmer = {
+          fullName: data.fullName ?? "",
+          email: data.email ?? user.email ?? "",
+          phone: data.phone ?? "",
+          farm: {
+            size: data.farm?.size ?? 0,
+            unit: data.farm?.unit ?? "acres",
+            location: data.farm?.location ?? "",
+            memberSince: data.farm?.memberSince ?? "",
+          },
+          cropsGrown: Array.isArray(data.cropsGrown)
+            ? data.cropsGrown
+            : [],
+          role: "farmer"
+        }
+
+        setFarmerData(normalized)
+        setEditData(normalized)
       }
 
       setLoading(false)
@@ -86,7 +103,7 @@ export default function FarmerProfile() {
 
   return (
     <div className="space-y-6">
-      {/* HEADER + EDIT BUTTON */}
+      {/* HEADER */}
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold">{t("profile.title")}</h2>
 
@@ -104,14 +121,14 @@ export default function FarmerProfile() {
       {isEditing ? (
         <Card className="p-6 space-y-4">
           <input
-            value={editData?.fullName || ""}
+            value={editData?.fullName}
             onChange={(e) => handleChange("fullName", e.target.value)}
             className="border p-2 w-full"
             placeholder="Full Name"
           />
 
           <input
-            value={editData?.phone || ""}
+            value={editData?.phone}
             onChange={(e) => handleChange("phone", e.target.value)}
             className="border p-2 w-full"
             placeholder="Phone Number"
@@ -119,25 +136,25 @@ export default function FarmerProfile() {
 
           <input
             type="number"
-            value={editData?.farm.size || ""}
+            value={editData?.farm.size}
             onChange={(e) => handleChange("farm.size", Number(e.target.value))}
             className="border p-2 w-full"
             placeholder="Farm Size"
           />
 
           <input
-            value={editData?.farm.location || ""}
+            value={editData?.farm.location}
             onChange={(e) => handleChange("farm.location", e.target.value)}
             className="border p-2 w-full"
             placeholder="Location"
           />
 
           <input
-            value={editData?.cropsGrown.join(", ") || ""}
+            value={editData?.cropsGrown.join(", ")}
             onChange={(e) =>
               handleChange(
                 "cropsGrown",
-                e.target.value.split(",").map((c) => c.trim())
+                e.target.value.split(",").map((c) => c.trim()).filter(Boolean)
               )
             }
             className="border p-2 w-full"
@@ -165,7 +182,7 @@ export default function FarmerProfile() {
         </Card>
       ) : (
         <>
-          {/* VIEW MODE (YOUR ORIGINAL UI) */}
+          {/* VIEW MODE */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="p-6">
               <h3 className="font-semibold mb-4">{t("profile.personalInfo")}</h3>
@@ -182,7 +199,7 @@ export default function FarmerProfile() {
               <p className="text-sm text-gray-600 mt-3">{t("profile.phone")}</p>
               <div className="flex gap-2">
                 <Smartphone className="w-4 h-4 text-emerald-600" />
-                <p>{farmerData.phone}</p>
+                <p>{farmerData.phone || "Not added"}</p>
               </div>
             </Card>
 
@@ -191,23 +208,29 @@ export default function FarmerProfile() {
 
               <p className="text-sm text-gray-600">{t("profile.farmSize")}</p>
               <p>
-                {farmerData.farm.size} {farmerData.farm.unit}
+                {farmerData.farm.size
+                  ? `${farmerData.farm.size} ${farmerData.farm.unit}`
+                  : "Not added"}
               </p>
 
               <p className="text-sm text-gray-600 mt-3">{t("profile.location")}</p>
               <div className="flex gap-2">
                 <MapPin className="w-4 h-4 text-emerald-600" />
-                <p>{farmerData.farm.location}</p>
+                <p>{farmerData.farm.location || "Not added"}</p>
               </div>
-
-              <p className="text-sm text-gray-600 mt-3">{t("profile.memberSince")}</p>
-              <p>{farmerData.farm.memberSince}</p>
             </Card>
           </div>
 
           <Card className="p-6">
             <h3 className="font-semibold mb-4">{t("profile.cropsGrown")}</h3>
+
             <div className="flex flex-wrap gap-3">
+              {farmerData.cropsGrown.length === 0 && (
+                <p className="text-sm text-gray-500">
+                  No crops added yet 🌱
+                </p>
+              )}
+
               {farmerData.cropsGrown.map((crop) => (
                 <span
                   key={crop}
