@@ -14,7 +14,12 @@ import {
   serverTimestamp,
   query,
   orderBy,
+  doc,
+  updateDoc,
+  increment,
 } from "firebase/firestore"
+
+/* ================= TYPES ================= */
 
 type Pool = {
   id: string
@@ -25,17 +30,19 @@ type Pool = {
   status: "active" | "closed"
 }
 
+/* ================= COMPONENT ================= */
+
 export default function CommunityPooling() {
   const { t } = useLanguage()
 
   const [pools, setPools] = useState<Pool[]>([])
   const [loading, setLoading] = useState(true)
-  const [showCreateModal, setShowCreateModal] = useState(false)
 
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [cropType, setCropType] = useState("")
   const [targetQuantity, setTargetQuantity] = useState("")
 
-  // 🔹 Fetch pools
+  /* ========== FETCH POOLS ========== */
   useEffect(() => {
     const fetchPools = async () => {
       const q = query(
@@ -45,9 +52,9 @@ export default function CommunityPooling() {
 
       const snap = await getDocs(q)
 
-      const data: Pool[] = snap.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as Omit<Pool, "id">),
+      const data: Pool[] = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<Pool, "id">),
       }))
 
       setPools(data)
@@ -57,7 +64,7 @@ export default function CommunityPooling() {
     fetchPools()
   }, [])
 
-  // 🔹 Create pool
+  /* ========== CREATE POOL ========== */
   const createPool = async () => {
     const user = auth.currentUser
     if (!user) {
@@ -87,11 +94,61 @@ export default function CommunityPooling() {
     window.location.reload()
   }
 
+  /* ========== JOIN POOL ========== */
+  const joinPool = async (pool: Pool) => {
+    const user = auth.currentUser
+    if (!user) {
+      alert("Login required")
+      return
+    }
+
+    if (pool.status === "closed") {
+      alert("Pool already closed")
+      return
+    }
+
+    const quantity = Number(prompt("Enter quantity to add (quintals)"))
+
+    if (!quantity || quantity <= 0) {
+      alert("Invalid quantity")
+      return
+    }
+
+    if (pool.currentQuantity + quantity > pool.targetQuantity) {
+      alert("Quantity exceeds pool capacity")
+      return
+    }
+
+    /* 1️⃣ Add member entry */
+    await addDoc(collection(db, "poolMembers"), {
+      poolId: pool.id,
+      farmerId: user.uid,
+      quantity,
+      joinedAt: serverTimestamp(),
+    })
+
+    /* 2️⃣ Update pool */
+    const willClose =
+      pool.currentQuantity + quantity >= pool.targetQuantity
+
+    await updateDoc(doc(db, "communityPools", pool.id), {
+      currentQuantity: increment(quantity),
+      membersCount: increment(1),
+      status: willClose ? "closed" : "active",
+      updatedAt: serverTimestamp(),
+    })
+
+    alert("Joined pool successfully 🌱")
+    window.location.reload()
+  }
+
   if (loading) return <p>Loading pools...</p>
+
+  /* ================= UI ================= */
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* HEADER */}
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold">{t("pooling.title")}</h2>
         <Button
@@ -103,7 +160,7 @@ export default function CommunityPooling() {
         </Button>
       </div>
 
-      {/* Pool cards */}
+      {/* POOLS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {pools.map((pool) => {
           const fillPercentage = Math.min(
@@ -162,9 +219,10 @@ export default function CommunityPooling() {
 
               <Button
                 disabled={pool.status === "closed"}
+                onClick={() => joinPool(pool)}
                 className={`w-full mt-4 ${
                   pool.status === "closed"
-                    ? "bg-gray-300"
+                    ? "bg-gray-300 cursor-not-allowed"
                     : "bg-emerald-600 text-white"
                 }`}
               >
@@ -177,7 +235,7 @@ export default function CommunityPooling() {
         })}
       </div>
 
-      {/* Create Pool Modal */}
+      {/* CREATE POOL MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-md p-6">
