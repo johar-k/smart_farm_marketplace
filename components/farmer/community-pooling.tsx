@@ -46,7 +46,7 @@ export default function CommunityPooling() {
   useEffect(() => {
     const fetchPools = async () => {
       const q = query(
-        collection(db, "communityPools"),
+        collection(db, "pools"),
         orderBy("createdAt", "desc")
       )
 
@@ -131,7 +131,7 @@ export default function CommunityPooling() {
     const willClose =
       pool.currentQuantity + quantity >= pool.targetQuantity
 
-    await updateDoc(doc(db, "communityPools", pool.id), {
+    await updateDoc(doc(db, "pools", pool.id), {
       currentQuantity: increment(quantity),
       membersCount: increment(1),
       status: willClose ? "closed" : "active",
