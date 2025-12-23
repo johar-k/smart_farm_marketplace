@@ -9,7 +9,7 @@ import BrowseCrops from "@/components/consumer/browse-crops"
 import CartCheckout from "@/components/consumer/cart-checkout"
 import OrderHistory from "@/components/consumer/order-history"
 import FarmerRatings from "@/components/consumer/farmer-ratings"
-import ConsumerAnalytics from "@/components/consumer/consumer-analytics"
+
 import ConsumerDashboardHome from "@/components/consumer/dashboard-home"
 
 interface ConsumerDashboardProps {
@@ -30,7 +30,6 @@ export default function ConsumerDashboard({ onLogout, onSwitchRole }: ConsumerDa
     { id: "cart", label: t("nav.cart"), icon: ShoppingCart },
     { id: "history", label: t("nav.orderHistory"), icon: History },
     { id: "ratings", label: t("nav.farmerRatings"), icon: Star },
-    { id: "analytics", label: t("nav.analytics"), icon: BarChart3 },
   ]
 
   return (
@@ -92,7 +91,6 @@ export default function ConsumerDashboard({ onLogout, onSwitchRole }: ConsumerDa
           {activeSection === "cart" && <CartCheckout cartItems={cartItems} />}
           {activeSection === "history" && <OrderHistory />}
           {activeSection === "ratings" && <FarmerRatings />}
-          {activeSection === "analytics" && <ConsumerAnalytics />}
         </div>
       </div>
     </div>
