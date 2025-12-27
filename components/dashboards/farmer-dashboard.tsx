@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Leaf, LogOut, BarChart3, Plus, Users, TrendingUp, Settings, Home } from "lucide-react"
+import { Leaf, LogOut, BarChart3, Plus, Users, TrendingUp, Settings, Home, Package } from "lucide-react"
 import { useLanguage } from "@/lib/language-context"
 import { getTranslation } from "@/lib/translations"
 import { LanguageSwitcher } from "@/components/language-switcher"
+
 import FarmerProfile from "@/components/farmer/profile"
 import MyCrops from "@/components/farmer/my-crops"
 import AddCropForm from "@/components/farmer/add-crop-form"
@@ -12,6 +13,7 @@ import PricePrediction from "@/components/farmer/price-prediction"
 import CommunityPooling from "@/components/farmer/community-pooling"
 import SalesAnalytics from "@/components/farmer/sales-analytics"
 import FarmerDashboardHome from "@/components/farmer/dashboard-home"
+import FarmerOrders from "@/components/farmer/orders"   // ⭐ IMPORT
 
 interface FarmerDashboardProps {
   onLogout: () => void
@@ -28,6 +30,7 @@ export default function FarmerDashboard({ onLogout, onSwitchRole }: FarmerDashbo
     { id: "home", label: t("nav.dashboard"), icon: Home },
     { id: "profile", label: t("nav.profile"), icon: Leaf },
     { id: "crops", label: t("nav.myCrops"), icon: BarChart3 },
+    { id: "orders", label: "Orders", icon: Package },             // ⭐ NEW TAB
     { id: "add-crop", label: t("nav.addCrop"), icon: Plus },
     { id: "price-prediction", label: t("nav.pricePrediction"), icon: TrendingUp },
     { id: "pooling", label: t("nav.communityPooling"), icon: Users },
@@ -85,12 +88,13 @@ export default function FarmerDashboard({ onLogout, onSwitchRole }: FarmerDashbo
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Page Rendering */}
       <div className="flex-1 overflow-auto">
         <div className="p-8">
           {activeSection === "home" && <FarmerDashboardHome />}
           {activeSection === "profile" && <FarmerProfile />}
           {activeSection === "crops" && <MyCrops />}
+          {activeSection === "orders" && <FarmerOrders />}          {/* ⭐ HERE */}
           {activeSection === "add-crop" && <AddCropForm />}
           {activeSection === "price-prediction" && <PricePrediction />}
           {activeSection === "pooling" && <CommunityPooling />}
