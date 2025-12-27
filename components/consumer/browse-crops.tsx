@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Star, ShoppingCart } from "lucide-react"
-import { useLanguage } from "@/lib/language-context"
-import { getTranslation } from "@/lib/translations"
+import { Search, ShoppingCart, X, PhoneCall } from "lucide-react"
+import { db } from "../dashboards/firebase/config"
+import { collection, getDocs, doc, getDoc } from "firebase/firestore"
 
 interface BrowseCropsProps {
   onAddToCart: (items: any[]) => void
@@ -14,176 +14,150 @@ interface BrowseCropsProps {
 }
 
 export default function BrowseCrops({ onAddToCart, cartItems }: BrowseCropsProps) {
-  const { language } = useLanguage()
-  const t = (key: string) => getTranslation(language, key)
+  const [pools, setPools] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const [searchTerm, setSearchTerm] = useState<string>("")
-  const [selectedRegion, setSelectedRegion] = useState<string>("")
-  const [selectedSeason, setSelectedSeason] = useState<string>("")
-  const [priceRange, setPriceRange] = useState<string>("")
+  // Filters
+  const [searchTerm, setSearchTerm] = useState("")
+  const [region, setRegion] = useState("")
+  const [season, setSeason] = useState("")
+  const [minPrice, setMinPrice] = useState("")
+  const [maxPrice, setMaxPrice] = useState("")
 
-  const crops = [
-    {
-      id: 1,
-      name: "Wheat",
-      farmer: "Rajesh Kumar",
-      price: "₹2,100/quintal",
-      rating: 4.8,
-      region: "Punjab",
-      season: "Rabi",
-      quantity: "500 quintals",
-    },
-    {
-      id: 2,
-      name: "Rice",
-      farmer: "Priya Singh",
-      price: "₹2,800/quintal",
-      rating: 4.6,
-      region: "West Bengal",
-      season: "Kharif",
-      quantity: "300 quintals",
-    },
-    {
-      id: 3,
-      name: "Cotton",
-      farmer: "Amit Patel",
-      price: "₹5,500/quintal",
-      rating: 4.9,
-      region: "Gujarat",
-      season: "Kharif",
-      quantity: "150 quintals",
-    },
-    {
-      id: 4,
-      name: "Maize",
-      farmer: "Suresh Rao",
-      price: "₹1,800/quintal",
-      rating: 4.5,
-      region: "Karnataka",
-      season: "Kharif",
-      quantity: "400 quintals",
-    },
+  const [modalData, setModalData] = useState<any>(null)
+
+  const states = [
+    "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand",
+    "Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan",
+    "Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Delhi","Jammu & Kashmir"
   ]
 
-  const handleAddToCart = (crop: any) => {
-    onAddToCart([...cartItems, crop])
-  }
+  useEffect(() => {
+    const loadPools = async () => {
+      const snap = await getDocs(collection(db, "communityPools"))
+      const temp:any[] = []
+
+      for (const pool of snap.docs) {
+        const data = pool.data()
+        const farmerSnap = await getDoc(doc(db, "users", data.createdBy))
+
+        temp.push({
+          id: pool.id,
+          ...data,
+          farmerName: farmerSnap.exists() ? farmerSnap.data().fullName : "Unknown",
+          phone: farmerSnap.exists() ? farmerSnap.data().phone : "N/A"
+        })
+      }
+      setPools(temp)
+      setLoading(false)
+    }
+
+    loadPools()
+  }, [])
+
+  if (loading) return <p className="mt-10 text-center">Loading pools...</p>
+
+  // ---------------- FILTER DATA ----------------
+  const filtered = pools.filter(pool =>
+    (searchTerm === "" || pool.cropType?.toLowerCase().includes(searchTerm.toLowerCase())) &&
+    (region === "" || pool.region === region) &&
+    (season === "" || pool.season === season) &&
+    (minPrice === "" || pool.price >= Number(minPrice)) &&
+    (maxPrice === "" || pool.price <= Number(maxPrice))
+  )
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-900">{t("browse.title")}</h2>
+      <h2 className="text-3xl font-bold">Available Community Crops</h2>
 
-      {/* Search and Filters */}
-      <Card className="p-6 border-0 shadow-md">
+      {/* 🔥 NEW — Filter Bar (instead of just search input) */}
+      <Card className="p-6 shadow space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+          {/* Search */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t("browse.searchCrop")}</label>
+            <label className="font-semibold text-sm">Search Crop</label>
             <div className="relative">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder={t("browse.searchPlaceholder")}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+              <Search className="absolute left-3 top-3 w-4 text-gray-400"/>
+              <Input className="pl-10" value={searchTerm} placeholder="Search crop..."
+                onChange={(e)=>setSearchTerm(e.target.value)}/>
             </div>
           </div>
 
+          {/* Region */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t("browse.region")}</label>
-            <select
-              value={selectedRegion}
-              onChange={(e) => setSelectedRegion(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">{t("browse.allRegions")}</option>
-              <option value="punjab">{t("browse.punjab")}</option>
-              <option value="westbengal">{t("browse.westBengal")}</option>
-              <option value="gujarat">{t("browse.gujarat")}</option>
-              <option value="karnataka">{t("browse.karnataka")}</option>
+            <label className="font-semibold text-sm">Region</label>
+            <select value={region} onChange={(e)=>setRegion(e.target.value)} className="border p-2 rounded w-full">
+              <option value="">All States</option>
+              {states.map(x => <option key={x} value={x}>{x}</option>)}
             </select>
           </div>
 
+          {/* Season */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t("browse.season")}</label>
-            <select
-              value={selectedSeason}
-              onChange={(e) => setSelectedSeason(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">{t("browse.allSeasons")}</option>
-              <option value="kharif">{t("addCrop.kharif")}</option>
-              <option value="rabi">{t("addCrop.rabi")}</option>
-              <option value="summer">{t("addCrop.summer")}</option>
+            <label className="font-semibold text-sm">Season</label>
+            <select value={season} onChange={(e)=>setSeason(e.target.value)} className="border p-2 rounded w-full">
+              <option value="">All</option>
+              <option value="kharif">Kharif</option>
+              <option value="rabi">Rabi</option>
+              <option value="summer">Summer</option>
             </select>
           </div>
 
+          {/* Price Range */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t("browse.priceRange")}</label>
-            <select
-              value={priceRange}
-              onChange={(e) => setPriceRange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">{t("browse.allPrices")}</option>
-              <option value="low">{t("browse.under2000")}</option>
-              <option value="medium">{t("browse.range2000to4000")}</option>
-              <option value="high">{t("browse.above4000")}</option>
-            </select>
+            <label className="font-semibold text-sm">Min Price</label>
+            <Input type="number" value={minPrice} onChange={(e)=>setMinPrice(e.target.value)}/>
+            <label className="font-semibold text-sm block mt-2">Max Price</label>
+            <Input type="number" value={maxPrice} onChange={(e)=>setMaxPrice(e.target.value)}/>
           </div>
         </div>
       </Card>
 
-      {/* Crop Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {crops.map((crop) => (
-          <Card key={crop.id} className="p-6 border-0 shadow-md hover:shadow-lg transition-shadow">
-            <div className="mb-4">
-              <h3 className="text-xl font-bold text-gray-900">{crop.name}</h3>
-              <p className="text-sm text-gray-600">
-                {t("browse.by")} {crop.farmer}
-              </p>
-            </div>
+      {/* ---------------- Crop Cards ---------------- */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filtered.map(pool => (
+          <Card key={pool.id} className="p-6 shadow hover:shadow-xl transition">
+            <h2 className="text-xl font-bold">{pool.cropType}</h2>
+            <p className="text-gray-600 text-sm">Farmer: <b>{pool.farmerName}</b></p>
+            <p><b>Available:</b> {pool.currentQuantity} / {pool.targetQuantity} Q</p>
+            <p><b>Price:</b> ₹{pool.price || 0}/Q</p>
 
-            <div className="space-y-3 mb-4">
-              <div className="flex justify-between">
-                <span className="text-gray-600">{t("browse.price")}</span>
-                <span className="font-bold text-emerald-600">{crop.price}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">{t("browse.region")}</span>
-                <span className="font-medium text-gray-900">{crop.region}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">{t("browse.season")}</span>
-                <span className="font-medium text-gray-900">{crop.season}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">{t("browse.available")}</span>
-                <span className="font-medium text-gray-900">{crop.quantity}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                <span className="font-medium text-gray-900">{crop.rating}</span>
-              </div>
-            </div>
+            <div className="flex gap-2 mt-4">
+              <Button className="flex-1 bg-emerald-600 text-white" onClick={()=>setModalData(pool)}>
+                View
+              </Button>
+              <Button 
+  className="flex-1 border" 
+  onClick={() => onAddToCart([...cartItems ?? [], pool])}
+>
+  <ShoppingCart size={16}/> Add
+</Button>
 
-            <div className="flex gap-2">
-              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2">
-                {t("browse.viewDetails")}
-              </Button>
-              <Button
-                onClick={() => handleAddToCart(crop)}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-900 font-medium py-2 flex items-center justify-center gap-2"
-              >
-                <ShoppingCart className="w-4 h-4" />
-                {t("browse.add")}
-              </Button>
             </div>
           </Card>
         ))}
       </div>
+
+      {/* ---------------- View Modal ---------------- */}
+      {modalData && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+          <Card className="p-6 w-96 relative bg-white">
+            <X className="absolute top-2 right-2 cursor-pointer" onClick={()=>setModalData(null)}/>
+            <h2 className="text-2xl font-bold">{modalData.cropType}</h2>
+
+            <p className="mt-2"><b>Farmer:</b> {modalData.farmerName}</p>
+            <p><b>Phone:</b> {modalData.phone}</p>
+            <p><b>Available:</b> {modalData.currentQuantity} Q</p>
+            <p><b>Target:</b> {modalData.targetQuantity} Q</p>
+
+            <Button className="w-full mt-4 bg-emerald-600 text-white flex items-center justify-center gap-2"
+              onClick={()=>window.open(`tel:${modalData.phone}`)}>
+              <PhoneCall size={18}/> Contact Farmer
+            </Button>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

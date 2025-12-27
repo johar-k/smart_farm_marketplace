@@ -1,16 +1,23 @@
 "use client"
 
 import { useState } from "react"
-import { Leaf, LogOut, ShoppingCart, History, Star, BarChart3, Settings, Home } from "lucide-react"
+import {
+  Leaf, LogOut, ShoppingCart, History,
+  Star, Settings, Home, User
+} from "lucide-react"
+
 import { useLanguage } from "@/lib/language-context"
 import { getTranslation } from "@/lib/translations"
 import { LanguageSwitcher } from "@/components/language-switcher"
+
 import BrowseCrops from "@/components/consumer/browse-crops"
 import CartCheckout from "@/components/consumer/cart-checkout"
 import OrderHistory from "@/components/consumer/order-history"
 import FarmerRatings from "@/components/consumer/farmer-ratings"
-
 import ConsumerDashboardHome from "@/components/consumer/dashboard-home"
+
+// 🔥 add profile import
+import ConsumerProfile from "@/components/consumer/consumer-profile"
 
 interface ConsumerDashboardProps {
   onLogout: () => void
@@ -26,6 +33,7 @@ export default function ConsumerDashboard({ onLogout, onSwitchRole }: ConsumerDa
 
   const navItems = [
     { id: "home", label: t("nav.dashboard"), icon: Home },
+    { id: "profile", label: "Profile", icon: User }, // 🔥 NEW
     { id: "browse", label: t("nav.browseCrops"), icon: ShoppingCart },
     { id: "cart", label: t("nav.cart"), icon: ShoppingCart },
     { id: "history", label: t("nav.orderHistory"), icon: History },
@@ -52,7 +60,9 @@ export default function ConsumerDashboard({ onLogout, onSwitchRole }: ConsumerDa
                 key={item.id}
                 onClick={() => setActiveSection(item.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                  activeSection === item.id ? "bg-emerald-600 text-white" : "text-emerald-100 hover:bg-emerald-800"
+                  activeSection === item.id
+                    ? "bg-emerald-600 text-white"
+                    : "text-emerald-100 hover:bg-emerald-800"
                 }`}
               >
                 <Icon className="w-5 h-5" />
@@ -83,15 +93,14 @@ export default function ConsumerDashboard({ onLogout, onSwitchRole }: ConsumerDa
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="p-8">
-          {activeSection === "home" && <ConsumerDashboardHome />}
-          {activeSection === "browse" && <BrowseCrops onAddToCart={setCartItems} cartItems={cartItems} />}
-          {activeSection === "cart" && <CartCheckout cartItems={cartItems} />}
-          {activeSection === "history" && <OrderHistory />}
-          {activeSection === "ratings" && <FarmerRatings />}
-        </div>
+      {/* Main Area */}
+      <div className="flex-1 overflow-auto p-8">
+        {activeSection === "home" && <ConsumerDashboardHome />}
+        {activeSection === "profile" && <ConsumerProfile />} {/* 🔥 NEW */}
+        {activeSection === "browse" && <BrowseCrops onAddToCart={setCartItems} cartItems={cartItems} />}
+        {activeSection === "cart" && <CartCheckout cartItems={cartItems} />}
+        {activeSection === "history" && <OrderHistory />}
+        {activeSection === "ratings" && <FarmerRatings />}
       </div>
     </div>
   )
