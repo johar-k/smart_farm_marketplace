@@ -3,104 +3,113 @@
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
-import { useLanguage } from "@/lib/language-context"
-import { getTranslation } from "@/lib/translations"
+import { useState } from "react"
 
 interface CartCheckoutProps {
   cartItems: any[]
+  setCartItems?: (items:any[])=>void   // optional in case needed later for modifications
 }
 
-export default function CartCheckout({ cartItems }: CartCheckoutProps) {
-  const { language } = useLanguage()
-  const t = (key: string) => getTranslation(language, key)
+export default function CartCheckout({ cartItems, setCartItems }: CartCheckoutProps) {
+
+  const removeItem = (index:number)=>{
+    if(!setCartItems) return
+    const updated = [...cartItems]
+    updated.splice(index,1)
+    setCartItems(updated)
+  }
 
   const calculateTotal = () => {
-    return cartItems.reduce((total, item) => {
-      const price = Number.parseInt(item.price.replace(/[^\d]/g, ""))
-      return total + price
-    }, 0)
+    return cartItems.reduce((total, item) => total + (item.totalPrice ?? 0), 0)
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-900">{t("cart.title")}</h2>
+      <h2 className="text-3xl font-bold text-gray-900">My Cart</h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Cart Items */}
-        <div className="lg:col-span-2 space-y-4">
+        
+        {/* ---------------- CART ITEMS LIST ---------------- */}
+        <div className="space-y-4 lg:col-span-2">
           {cartItems.length === 0 ? (
-            <Card className="p-12 border-0 shadow-md text-center">
-              <p className="text-gray-600 text-lg">{t("cart.empty")}</p>
-              <p className="text-gray-500 text-sm mt-2">{t("cart.addFromBrowse")}</p>
+            <Card className="p-10 text-center shadow">
+              <p className="text-gray-600 text-lg">No items in cart</p>
+              <p className="text-gray-500 text-sm">Add items from Browse Crops</p>
             </Card>
           ) : (
             cartItems.map((item, index) => (
-              <Card key={index} className="p-6 border-0 shadow-md">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-900">{item.name}</h3>
-                    <p className="text-sm text-gray-600">
-                      {t("browse.by")} {item.farmer}
-                    </p>
-                    <div className="mt-3 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">{t("browse.price")}</span>
-                        <span className="font-medium text-gray-900">{item.price}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">{t("browse.region")}</span>
-                        <span className="font-medium text-gray-900">{item.region}</span>
-                      </div>
+              <Card key={index} className="p-5 shadow flex justify-between items-start">
+
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold">{item.cropType}</h3>
+                  <p className="text-sm text-gray-600">Farmer: {item.farmerName}</p>
+
+                  <div className="text-sm mt-3 space-y-1">
+                    <div className="flex justify-between w-64">
+                      <span>Price/Q:</span>
+                      <span className="font-semibold text-emerald-700">₹{item.price}</span>
+                    </div>
+
+                    <div className="flex justify-between w-64">
+                      <span>Quantity:</span>
+                      <span className="font-semibold">{item.quantity} Q</span>
+                    </div>
+
+                    <div className="flex justify-between w-64">
+                      <span>Total:</span>
+                      <span className="font-bold text-emerald-700">₹{item.totalPrice}</span>
                     </div>
                   </div>
-                  <button className="text-red-600 hover:text-red-700">
-                    <Trash2 className="w-5 h-5" />
-                  </button>
                 </div>
+
+                {/* Remove button */}
+                {setCartItems && (
+                  <button className="text-red-600 hover:text-red-700" onClick={()=>removeItem(index)}>
+                    <Trash2 className="w-6 h-6"/>
+                  </button>
+                )}
+
               </Card>
             ))
           )}
         </div>
 
-        {/* Checkout Summary */}
-        <Card className="p-6 border-0 shadow-md h-fit">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">{t("cart.orderSummary")}</h3>
-          <div className="space-y-3 mb-6 pb-6 border-b border-gray-200">
+        {/* ---------------- SUMMARY SECTION ---------------- */}
+        <Card className="p-6 shadow h-fit">
+          <h3 className="text-xl font-bold mb-3">Order Summary</h3>
+
+          <div className="space-y-3 border-b pb-3">
             <div className="flex justify-between">
-              <span className="text-gray-600">{t("cart.items")}</span>
-              <span className="font-medium text-gray-900">{cartItems.length}</span>
+              <span>Items:</span>
+              <span className="font-semibold">{cartItems.length}</span>
             </div>
+
             <div className="flex justify-between">
-              <span className="text-gray-600">{t("cart.subtotal")}</span>
-              <span className="font-medium text-gray-900">₹{calculateTotal().toLocaleString()}</span>
+              <span>Subtotal:</span>
+              <span className="font-semibold">₹{calculateTotal()}</span>
             </div>
+
             <div className="flex justify-between">
-              <span className="text-gray-600">{t("cart.shipping")}</span>
-              <span className="font-medium text-gray-900">₹500</span>
+              <span>Delivery Charge:</span>
+              <span className="font-semibold">₹150</span>
             </div>
           </div>
 
-          <div className="flex justify-between mb-6">
-            <span className="font-bold text-gray-900">{t("cart.total")}</span>
-            <span className="text-2xl font-bold text-emerald-600">₹{(calculateTotal() + 500).toLocaleString()}</span>
+          <div className="flex justify-between mt-4 text-lg font-bold">
+            <span>Total:</span>
+            <span className="text-emerald-600">₹{calculateTotal() + 150}</span>
           </div>
 
-          <Button
+          <Button 
             disabled={cartItems.length === 0}
-            className={`w-full font-medium py-3 ${
-              cartItems.length === 0
-                ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+            className={`w-full mt-6 py-3 text-white text-lg ${
+              cartItems.length === 0 ? "bg-gray-400" : "bg-emerald-600 hover:bg-emerald-700"
             }`}
           >
-            {t("cart.proceedToPayment")}
+            Proceed to Order
           </Button>
 
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-900">
-              <span className="font-semibold">{t("cart.securePayment")}:</span> {t("cart.securePaymentText")}
-            </p>
-          </div>
+          <p className="text-xs text-gray-500 mt-2">Payment Gateway will be added later.</p>
         </Card>
       </div>
     </div>
