@@ -1,168 +1,181 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
-import { auth, db } from "../dashboards/firebase/config";
+import { useEffect, useState } from "react"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Trash2 } from "lucide-react"
+import { auth, db } from "../dashboards/firebase/config"
 import {
-  collection,
-  doc,
-  getDocs,
-  deleteDoc,
-  updateDoc,
-  addDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+  collection, doc, getDocs, deleteDoc,
+  updateDoc, addDoc, serverTimestamp
+} from "firebase/firestore"
 
 export default function CartCheckout() {
-  const [cartItems, setCartItems] = useState<any[]>([]);
-  const DELIVERY_CHARGE = 50;
+  const [cartItems, setCartItems] = useState<any[]>([])
+  const [processing, setProcessing] = useState(false)
 
-  useEffect(() => {
-    loadCart();
-  }, []);
+  const DELIVERY_CHARGE = 50   // fixed
 
-  // Load cart from Firestore
+  useEffect(() => { loadCart() }, [])
+
+  // LOAD CART
   const loadCart = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
+    const user = auth.currentUser
+    if (!user) return
+    const snap = await getDocs(collection(db, "users", user.uid, "cart"))
+    const arr: any[] = []
+    snap.forEach(d => arr.push({ id: d.id, ...d.data() }))
+    setCartItems(arr)
+  }
 
-    const snap = await getDocs(collection(db, "users", user.uid, "cart"));
-    const arr: any[] = [];
-    snap.forEach((doc) => arr.push(doc.data()));
-    setCartItems(arr);
-  };
-
+  // REMOVE ITEM
   const removeItem = async (id: string) => {
-    const user = auth.currentUser;
-    if (!user) return;
-    await deleteDoc(doc(db, "users", user.uid, "cart", id));
-    loadCart();
-  };
+    const user = auth.currentUser
+    if (!user) return
+    await deleteDoc(doc(db, "users", user.uid, "cart", id))
+    loadCart()
+  }
 
-  const subtotal = cartItems.reduce((t, i) => t + i.total, 0);
-  const grandTotal = subtotal + DELIVERY_CHARGE;
+  // TOTALS
+  const subtotal = cartItems.reduce((t, i) => t + i.total, 0)
+  const grandTotal = subtotal + DELIVERY_CHARGE
 
-  // ------------------ PAYMENT ACTION ------------------
-  const placeOrder = async (method: "UPI" | "PHONE" | "COD") => {
-    const user = auth.currentUser;
-    if (!user) return alert("Login required");
+  // ------------------- ORDER PLACEMENT -------------------
+  const placeOrder = async (method:"UPI"|"PHONE"|"COD")=>{
+    if(cartItems.length===0) return alert("Cart empty")
+    const user = auth.currentUser
+    if(!user) return alert("Login required")
 
-    if (cartItems.length === 0) return alert("Cart is empty");
+    setProcessing(true)
 
-    // 🔥 Save order in Firestore
-    const orderRef = await addDoc(collection(db, "orders"), {
-      userId: user.uid,
-      items: cartItems,
-      amount: grandTotal,
-      deliveryCharge: DELIVERY_CHARGE,
-      paymentMethod: method,
-      paymentStatus: method === "COD" ? "pending" : "awaiting_payment",
-      createdAt: serverTimestamp(),
-    });
+    // 🔥 PROCESS ONE ITEM AT A TIME (multi-farmer safe)
+    for(const item of cartItems){
 
-    // 🔥 Reduce stock
-    for (const item of cartItems) {
-      if (item.type === "crop") {
-        await updateDoc(doc(db, "crops", item.id), {
-          quantity: item.available - item.quantity,
-        });
-      } else if (item.type === "pool") {
-        await updateDoc(doc(db, "communityPools", item.id), {
-          currentQuantity: item.available - item.quantity,
-        });
+      if(!item.farmerId){
+        alert("FarmerID missing - Fix Browse AddToCart")
+        setProcessing(false)
+        return
       }
+
+      const payAmount = item.total + DELIVERY_CHARGE
+
+      // 🔥 Save order for that farmer
+      await addDoc(collection(db, "orders"), {
+        orderType:item.type,
+        cropName:item.cropType,
+        quantity:item.quantity,
+        totalPrice:item.total,
+        farmerId:item.farmerId,
+        farmerUpi:item.upiId??null,
+        farmerPhone:item.phone,
+        consumerId:user.uid,
+        status:"processing",
+        paymentMethod:method,
+        deliveryCharge:DELIVERY_CHARGE,
+        finalPay:payAmount,
+        createdAt:serverTimestamp()
+      })
+
+      // 🔥 Reduce stock
+      if(item.type==="crop"){
+        await updateDoc(doc(db,"crops",item.id),{
+          quantity:item.available-item.quantity
+        })
+      }
+      else{ // pool
+        await updateDoc(doc(db,"communityPools",item.id),{
+          currentQuantity:item.available-item.quantity
+        })
+      }
+
+      // 🔥 Trigger Payment
+      if(method==="UPI") openUPI(payAmount,item.upiId,item.cropType)
+      if(method==="PHONE") alert(`Pay to farmer 📞 ${item.phone}`)
+
+      // Delete this item from cart after payment
+      await deleteDoc(doc(db,"users",user.uid,"cart",item.id))
     }
 
-    // 🔥 Clear cart
-    const snap = await getDocs(collection(db, "users", user.uid, "cart"));
-    snap.forEach((d) => deleteDoc(doc(db, "users", user.uid, "cart", d.id)));
+    alert("All items Purchased Successfully 🎉")
+    setProcessing(false)
+    loadCart()
+  }
 
-    alert("Order Placed Successfully 🎉");
-    loadCart();
 
-    // 🔥 Only open UPI/pay if selected
-    if (method === "UPI") upiPayment(orderRef.id);
-    if (method === "PHONE") phonePayment(orderRef.id);
-  };
+  // ------------------- PAYMENT FUNCTIONS -------------------
+  const openUPI = (amount:number,upi:string,crop:string)=>{
+    if(!upi) return alert("UPI ID missing for farmer")
+    const uri = `upi://pay?pa=${upi}&pn=Farmer&am=${amount}&tn=Purchase-${crop}`
+    window.location.href = uri
+  }
 
-  // 🔹 Open UPI App for payment
-  const upiPayment = (orderId: string) => {
-    const farmerUpi = cartItems[0].upiId;
-    if (!farmerUpi) return alert("Farmer UPI not found");
-
-    const upiURL = `upi://pay?pa=${farmerUpi}&pn=Farmer&am=${grandTotal}&tn=Order-${orderId}`;
-    window.location.href = upiURL;
-  };
-
-  // 🔹 Show phone number for manual payment
-  const phonePayment = (orderId: string) => {
-    const phone = cartItems[0].phone;
-    alert(`📞 Call & Pay to Farmer: ${phone}`);
-  };
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-900">My Cart</h2>
+  <div className="space-y-6">
+    
+    <h2 className="text-3xl font-bold">My Cart</h2>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* CART */}
-        <div className="space-y-4 lg:col-span-2">
-          {cartItems.length === 0 ? (
-            <Card className="p-10 text-center shadow">
-              <p className="text-gray-600 text-lg">No items in cart</p>
-              <p className="text-gray-500 text-sm">Add items from Browse</p>
-            </Card>
-          ) : (
-            cartItems.map((item, index) => (
-              <Card key={index} className="p-5 shadow flex justify-between items-start">
-                <div className="space-y-2">
-                  <h3 className="text-xl font-bold">{item.cropType}</h3>
-                  <p className="text-sm text-gray-600">Farmer: {item.farmerName}</p>
-                  <p className="text-sm">₹{item.price}/Q x {item.quantity} Q</p>
-                  <p className="text-emerald-700 font-bold">Total: ₹{item.total}</p>
-                </div>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                <button className="text-red-600 hover:text-red-700" onClick={() => removeItem(item.id)}>
-                  <Trash2 className="w-6 h-6" />
-                </button>
-              </Card>
-            ))
-          )}
-        </div>
+      {/* ---------------- CART LIST ---------------- */}
+      <div className="lg:col-span-2 space-y-4">
+        {cartItems.length===0 ? (
+          <Card className="p-10 text-center">No Items in cart</Card>
+        ):cartItems.map((it,i)=>(
+          <Card key={i} className="p-5 flex justify-between">
+            <div>
+              <h3 className="font-bold text-xl">{it.cropType}</h3>
+              <p>{it.quantity} Q × ₹{it.price}</p>
+              <p className="text-green-700 font-bold">₹{it.total}</p>
+            </div>
 
-        {/* SUMMARY */}
-        <Card className="p-6 shadow">
-          <h3 className="text-xl font-bold mb-3">Order Summary</h3>
-          <div className="space-y-2 border-b pb-3">
-            <p className="flex justify-between"><span>Items:</span><span>{cartItems.length}</span></p>
-            <p className="flex justify-between"><span>Subtotal:</span><span>₹{subtotal}</span></p>
-            <p className="flex justify-between"><span>Delivery:</span><span>₹{DELIVERY_CHARGE}</span></p>
-          </div>
-          <h3 className="flex justify-between mt-3 text-lg font-bold">
-            <span>Total:</span> <span className="text-emerald-600">₹{grandTotal}</span>
-          </h3>
-
-          {/* PAYMENT OPTIONS */}
-          <div className="mt-5 space-y-3">
-            <Button className="w-full bg-emerald-600 text-white text-lg"
-              onClick={() => placeOrder("UPI")}>
-              Pay via UPI
-            </Button>
-
-            <Button className="w-full bg-blue-600 text-white text-lg"
-              onClick={() => placeOrder("PHONE")}>
-              Pay via Phone Number
-            </Button>
-
-            <Button className="w-full bg-gray-700 text-white text-lg"
-              onClick={() => placeOrder("COD")}>
-              Cash on Delivery
-            </Button>
-          </div>
-        </Card>
+            <button onClick={()=>removeItem(it.id)}>
+              <Trash2 className="text-red-600 w-6 h-6"/>
+            </button>
+          </Card>
+        ))}
       </div>
+
+
+      {/* ---------------- SUMMARY ---------------- */}
+      <Card className="p-6">
+        <h3 className="text-xl font-bold mb-2">Pay Only For First Item</h3>
+
+        {cartItems[0] && (
+        <div className="mb-3">
+          <p>Crop: <b>{cartItems[0].cropType}</b></p>
+          <p>Amount: ₹{cartItems[0].total}</p>
+          <p>Delivery: ₹{DELIVERY_CHARGE}</p>
+          <p className="font-bold text-green-700 mt-2">
+            Total Pay: ₹{cartItems[0].total+DELIVERY_CHARGE}
+          </p>
+        </div>
+        )}
+
+        {/* Payment Buttons */}
+        <div className="space-y-3 mt-4">
+          <Button disabled={processing||!cartItems[0]}
+           onClick={()=>placeOrder("UPI")}
+           className="bg-emerald-700 w-full">
+           Pay UPI
+          </Button>
+
+          <Button disabled={processing||!cartItems[0]}
+           onClick={()=>placeOrder("PHONE")}
+           className="bg-blue-600 w-full">
+           Pay Phone
+          </Button>
+
+          <Button disabled={processing||!cartItems[0]}
+           onClick={()=>placeOrder("COD")}
+           className="bg-black w-full">
+           Cash On Delivery
+          </Button>
+        </div>
+      </Card>
+
     </div>
-  );
+
+  </div>
+  )
 }
