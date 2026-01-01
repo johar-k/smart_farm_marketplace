@@ -206,8 +206,18 @@ export default function BrowseCrops() {
             <p>₹{addModal.price}/Q</p>
 
             <label className="block mt-3">Quantity</label>
-            <Input type="number" min={1} max={addModal.available}
-              value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
+            <Input 
+  type="number"
+  min={1} 
+  max={addModal?.available ? Number(addModal.available) : 1}   // FIX 🔥
+  value={quantity}
+  onChange={e=>{
+    const v = Number(e.target.value)
+    if(v > Number(addModal.available)) return setQuantity(addModal.available)  // stop over-limit
+    setQuantity(v)
+  }}
+/>
+
 
             <p className="text-md font-bold mt-2 text-emerald-700">
               Total: ₹{total(addModal.price, quantity)}

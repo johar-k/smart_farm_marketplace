@@ -1,176 +1,113 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { auth, db } from "@/components/dashboards/firebase/config"
+import { useEffect, useState } from "react";
+import { auth, db } from "../dashboards/firebase/config";
 import {
   collection,
   query,
   where,
   orderBy,
-  getDocs,
+  onSnapshot,
   updateDoc,
-  doc,
-  serverTimestamp,
-} from "firebase/firestore"
+  doc
+} from "firebase/firestore";
 
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-
-type Order = {
-  id: string
-  consumerName: string
-  consumerPhone: string
-  deliveryAddress: string
-  cropName: string
-  quantity: number
-  totalPrice: number
-  orderType: "direct" | "pool"
-  status: "processing" | "in_delivery" | "delivered"
-}
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export default function FarmerOrders() {
-  const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // 🔹 Fetch farmer orders
+  // 🔥 Live Sync Orders – Realtime updates
   useEffect(() => {
-    const fetchOrders = async () => {
-      const user = auth.currentUser
-      if (!user) return
+    const user = auth.currentUser;
+    if (!user) return;
 
-      const q = query(
-        collection(db, "orders"),
-        where("farmerId", "==", user.uid),
-        orderBy("createdAt", "desc")
-      )
+    const q = query(
+      collection(db, "orders"),
+      where("farmerId", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
 
-      const snap = await getDocs(q)
+    const unsub = onSnapshot(q, (snap) => {
+      const arr:any[] = [];
+      snap.forEach(d => arr.push({ id:d.id, ...d.data() }));
+      setOrders(arr);
+      setLoading(false);
+    });
 
-      const data: Order[] = snap.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...(docSnap.data() as Omit<Order, "id">),
-      }))
+    return () => unsub();
+  }, []);
 
-      setOrders(data)
-      setLoading(false)
-    }
+  // 🔥 Update status — visible to customer instantly
+  const updateStatus = async (id: string, status: string) => {
+    await updateDoc(doc(db, "orders", id), { status });
+  };
 
-    fetchOrders()
-  }, [])
-
-  // 🔹 Update order status
-  const updateStatus = async (
-    orderId: string,
-    newStatus: "in_delivery" | "delivered"
-  ) => {
-    await updateDoc(doc(db, "orders", orderId), {
-      status: newStatus,
-      updatedAt: serverTimestamp(),
-    })
-
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId ? { ...o, status: newStatus } : o
-      )
-    )
-  }
-
-  if (loading) return <p>Loading orders...</p>
-
-  if (orders.length === 0)
-    return <p>No orders received yet.</p>
+  if (loading) return <p className="text-center mt-10 text-lg">Loading Orders...</p>;
+  if (orders.length === 0) return <p className="text-center mt-10 text-lg">No Orders Yet</p>;
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold">Orders</h2>
+      <h2 className="text-3xl font-bold">Orders Received</h2>
 
-      {orders.map((order) => (
-        <Card key={order.id} className="p-6 space-y-4 shadow-md">
-          {/* Header */}
+      {orders.map(order => (
+        <Card key={order.id} className="p-6 space-y-4 shadow-md hover:shadow-lg transition">
+
+          {/* Title + Status */}
           <div className="flex justify-between items-center">
-            <h3 className="text-xl font-semibold">
-              {order.cropName}
-            </h3>
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                order.status === "processing"
-                  ? "bg-yellow-100 text-yellow-800"
-                  : order.status === "in_delivery"
-                  ? "bg-blue-100 text-blue-800"
-                  : "bg-emerald-100 text-emerald-800"
-              }`}
-            >
+            <h3 className="text-xl font-bold">{order.cropName}</h3>
+
+            <span className={`px-3 py-1 rounded text-sm font-semibold capitalize
+              ${order.status === "delivered" ? "bg-green-200 text-green-700" :
+                order.status === "in_delivery" ? "bg-blue-200 text-blue-700" :
+                "bg-yellow-200 text-yellow-700"}`}>
               {order.status.replace("_", " ")}
             </span>
           </div>
 
-          {/* Order Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-gray-500">Consumer</p>
-              <p className="font-medium">{order.consumerName}</p>
-            </div>
-
-            <div>
-              <p className="text-gray-500">Phone</p>
-              <p className="font-medium">{order.consumerPhone}</p>
-            </div>
-
-            <div>
-              <p className="text-gray-500">Delivery Address</p>
-              <p className="font-medium">{order.deliveryAddress}</p>
-            </div>
-
-            <div>
-              <p className="text-gray-500">Order Type</p>
-              <p className="font-medium capitalize">{order.orderType}</p>
-            </div>
-
-            <div>
-              <p className="text-gray-500">Quantity</p>
-              <p className="font-medium">{order.quantity}</p>
-            </div>
-
-            <div>
-              <p className="text-gray-500">Total Price</p>
-              <p className="font-medium text-emerald-600">
-                ₹{order.totalPrice}
-              </p>
-            </div>
+          {/* Order Details */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+            <p><b>Quantity:</b> {order.quantity} Q</p>
+            <p><b>Total Amount:</b> ₹{order.finalPay}</p>
+            <p><b>Payment:</b> {order.paymentMethod}</p>
+            <p><b>Order Type:</b> {order.orderType ?? "N/A"}</p>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t">
+          <hr/>
+
+          {/* Customer Details */}
+          <div className="text-sm space-y-1">
+            <p><b>Customer Name:</b> {order.consumerName ?? "Unknown"}</p>
+            <p><b>Phone:</b> {order.consumerPhone}</p>
+            <p><b>Address:</b> {order.deliveryAddress ?? "No address provided"}</p>
+          </div>
+
+          {/* Status Action Buttons */}
+          <div className="flex gap-3 pt-3">
+
             {order.status === "processing" && (
-              <Button
-                onClick={() =>
-                  updateStatus(order.id, "in_delivery")
-                }
-                className="bg-blue-600 text-white"
-              >
+              <Button className="bg-blue-600 text-white"
+                onClick={() => updateStatus(order.id, "in_delivery")}>
                 Start Delivery
               </Button>
             )}
 
             {order.status === "in_delivery" && (
-              <Button
-                onClick={() =>
-                  updateStatus(order.id, "delivered")
-                }
-                className="bg-emerald-600 text-white"
-              >
+              <Button className="bg-green-600 text-white"
+                onClick={() => updateStatus(order.id, "delivered")}>
                 Mark Delivered
               </Button>
             )}
 
             {order.status === "delivered" && (
-              <Button disabled className="bg-gray-300">
-                Completed
-              </Button>
+              <Button disabled className="bg-gray-400 text-white">Completed</Button>
             )}
           </div>
+
         </Card>
       ))}
     </div>
-  )
+  );
 }

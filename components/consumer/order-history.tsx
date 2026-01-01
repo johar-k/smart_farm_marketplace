@@ -1,110 +1,81 @@
-"use client"
+"use client";
 
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Clock, Truck } from "lucide-react"
-import { useLanguage } from "@/lib/language-context"
-import { getTranslation } from "@/lib/translations"
+import { useEffect, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle, Clock, Truck } from "lucide-react";
+import { auth, db } from "@/components/dashboards/firebase/config";
+import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
 
 export default function OrderHistory() {
-  const { language } = useLanguage()
-  const t = (key: string) => getTranslation(language, key)
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
 
-  const orders = [
-    {
-      id: "ORD-001",
-      date: "2024-10-15",
-      crops: "Wheat (500 quintals)",
-      total: "₹1,05,000",
-      status: "Delivered",
-      deliveryDate: "2024-10-20",
-    },
-    {
-      id: "ORD-002",
-      date: "2024-10-10",
-      crops: "Rice (300 quintals)",
-      total: "₹84,000",
-      status: "In Transit",
-      deliveryDate: "2024-10-25",
-    },
-    {
-      id: "ORD-003",
-      date: "2024-09-28",
-      crops: "Cotton (150 quintals)",
-      total: "₹82,500",
-      status: "Delivered",
-      deliveryDate: "2024-10-05",
-    },
-  ]
+  useEffect(() => {
+    const loadOrders = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "Delivered":
-        return <CheckCircle className="w-5 h-5 text-emerald-600" />
-      case "In Transit":
-        return <Truck className="w-5 h-5 text-blue-600" />
-      default:
-        return <Clock className="w-5 h-5 text-amber-600" />
-    }
-  }
+      const q = query(
+        collection(db, "orders"),
+        where("consumerId", "==", user.uid),
+        orderBy("createdAt", "desc")   // this needs index
+      );
 
-  const getStatusTranslation = (status: string) => {
-    switch (status) {
-      case "Delivered":
-        return t("orders.delivered")
-      case "In Transit":
-        return t("orders.inTransit")
-      default:
-        return t("orders.pending")
-    }
-  }
+      const snap = await getDocs(q);
+      const list: any[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+
+      setOrders(list);
+      setLoading(false);
+    };
+
+    loadOrders();
+  }, []);
+
+  const statusBadge = (st: string) => {
+    if (st === "delivered") return <Badge className="bg-emerald-600">Delivered</Badge>;
+    if (st === "in_delivery") return <Badge className="bg-blue-600">In Delivery</Badge>;
+    return <Badge className="bg-yellow-600">Processing</Badge>;
+  };
+
+  const statusIcon = (st: string) => {
+    if (st === "delivered") return <CheckCircle className="w-5 h-5 text-emerald-600" />;
+    if (st === "in_delivery") return <Truck className="w-5 h-5 text-blue-600" />;
+    return <Clock className="w-5 h-5 text-amber-600" />;
+  };
+
+  if (loading) return <p>Loading...</p>;
+  if (orders.length === 0) return <p>No orders yet.</p>;
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-900">{t("orders.title")}</h2>
+      <h2 className="text-3xl font-bold text-gray-900">My Orders</h2>
 
       <div className="space-y-4">
-        {orders.map((order) => (
-          <Card key={order.id} className="p-6 border-0 shadow-md hover:shadow-lg transition-shadow">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">{order.id}</h3>
-                <p className="text-sm text-gray-600">{order.date}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {getStatusIcon(order.status)}
-                <Badge
-                  variant={order.status === "Delivered" ? "default" : "secondary"}
-                  className={
-                    order.status === "Delivered"
-                      ? "bg-emerald-600"
-                      : order.status === "In Transit"
-                        ? "bg-blue-600"
-                        : "bg-amber-600"
-                  }
-                >
-                  {getStatusTranslation(order.status)}
-                </Badge>
+        {orders.map((o) => (
+          <Card key={o.id} className="p-5 shadow flex flex-col gap-3">
+            
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold">{o.cropName}</h3>
+              <div className="flex gap-2 items-center">
+                {statusIcon(o.status)}
+                {statusBadge(o.status)}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">{t("orders.crops")}</p>
-                <p className="font-medium text-gray-900">{order.crops}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">{t("orders.totalAmount")}</p>
-                <p className="font-bold text-emerald-600">{order.total}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">{t("orders.expectedDelivery")}</p>
-                <p className="font-medium text-gray-900">{order.deliveryDate}</p>
-              </div>
+            <div className="grid grid-cols-2 text-sm gap-2">
+              <p><b>Qty:</b> {o.quantity} Q</p>
+              <p><b>Total:</b> ₹{o.finalPay}</p>
+              <p><b>Payment:</b> {o.paymentMethod}</p>
+              <p><b>Order Type:</b> {o.orderType}</p>
             </div>
+            
+            <p className="text-xs text-gray-500">Order ID: {o.id}</p>
           </Card>
         ))}
       </div>
     </div>
-  )
+  );
 }
