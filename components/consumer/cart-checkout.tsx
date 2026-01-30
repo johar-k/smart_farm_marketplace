@@ -10,7 +10,12 @@ import {
   updateDoc, addDoc, serverTimestamp, getDoc
 } from "firebase/firestore";
 
-export default function CartCheckout() {
+interface CartCheckoutProps {
+  cartItems: any[]
+}
+
+export default function CartCheckout({ cartItems: initialCartItems }: CartCheckoutProps) {
+
 
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [processing, setProcessing] = useState(false);

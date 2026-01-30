@@ -15,7 +15,18 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-export default function BrowseCrops() {
+import { Dispatch, SetStateAction } from "react"
+
+interface BrowseCropsProps {
+  cartItems: any[]
+  onAddToCart: Dispatch<SetStateAction<any[]>>
+}
+
+export default function BrowseCrops({
+  cartItems,
+  onAddToCart,
+}: BrowseCropsProps) {
+
   const [farmerCrops, setFarmerCrops] = useState<any[]>([]);
   const [pools, setPools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

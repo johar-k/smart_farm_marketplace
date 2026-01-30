@@ -5,7 +5,12 @@ import {
   sendPasswordResetEmail,
   sendEmailVerification,
 } from "firebase/auth"
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore"
+import {
+  doc,
+  setDoc,
+  getDoc,
+  serverTimestamp,
+} from "firebase/firestore"
 
 /* =========================
    REGISTER USER
@@ -23,34 +28,43 @@ export async function registerUser(
     password
   )
   const user = userCredential.user
+  if (!user) throw new Error("Registration failed")
 
   // 2️⃣ Send email verification
   await sendEmailVerification(user)
 
-  // 3️⃣ Create Firestore profile (IMPORTANT)
+  // 3️⃣ Create MAIN Firestore profile (WEB USES THIS)
   await setDoc(doc(db, "users", user.uid), {
     uid: user.uid,
     email,
     role,
 
-    // ✅ Basic profile
     fullName: extraData.fullName || "",
     phone: extraData.phone || "",
 
-    // ✅ Farmer-specific safe defaults
     farm: {
-      size: null,            // number | null
-      unit: "acres",          // string
-      location: "",           // string
-      memberSince: new Date().toISOString().slice(0, 7), // "YYYY-MM"
+      size: extraData.farmSize ?? null,
+      unit: "acres",
+      location: extraData.location || "",
+      memberSince: new Date().toISOString().slice(0, 7),
     },
 
-    cropsGrown: [],          // array of strings
+    cropsGrown: [],
 
-    // ✅ Metadata
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+
+  // 🔥🔥🔥 4️⃣ CREATE CONSUMER DOC (THIS FIXES MOBILE LOGIN)
+  if (role === "consumer") {
+    await setDoc(doc(db, "consumers", user.uid), {
+      uid: user.uid,
+      email,
+      fullName: extraData.fullName || "",
+      role: "consumer",
+      createdAt: serverTimestamp(),
+    })
+  }
 
   return user
 }
@@ -65,15 +79,15 @@ export async function loginUser(email, password) {
     password
   )
   const user = userCredential.user
+  if (!user) throw new Error("Login failed")
 
   // ❌ Block unverified users
   if (!user.emailVerified) {
     throw new Error("Please verify your email before logging in.")
   }
 
-  // Fetch Firestore profile
+  // Fetch Firestore profile (WEB)
   const snap = await getDoc(doc(db, "users", user.uid))
-
   if (!snap.exists()) {
     throw new Error("User profile not found. Please register again.")
   }
