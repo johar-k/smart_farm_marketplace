@@ -15,8 +15,6 @@ import CartCheckout from "@/components/consumer/cart-checkout"
 import OrderHistory from "@/components/consumer/order-history"
 import FarmerRatings from "@/components/consumer/farmer-ratings"
 import ConsumerDashboardHome from "@/components/consumer/dashboard-home"
-
-// 🔥 add profile import
 import ConsumerProfile from "@/components/consumer/consumer-profile"
 
 interface ConsumerDashboardProps {
@@ -31,9 +29,25 @@ export default function ConsumerDashboard({ onLogout, onSwitchRole }: ConsumerDa
   const [activeSection, setActiveSection] = useState<string>("home")
   const [cartItems, setCartItems] = useState<any[]>([])
 
+  // ✅ Logout Confirmation
+  const handleLogoutClick = () => {
+    const confirmed = window.confirm("Are you sure you want to logout?")
+    if (confirmed) {
+      onLogout()
+    }
+  }
+
+  // ✅ Switch Role Confirmation
+  const handleSwitchRoleClick = () => {
+    const confirmed = window.confirm("Do you want to switch role?")
+    if (confirmed) {
+      onSwitchRole()
+    }
+  }
+
   const navItems = [
     { id: "home", label: t("nav.dashboard"), icon: Home },
-    { id: "profile", label: "Profile", icon: User }, // 🔥 NEW
+    { id: "profile", label: "Profile", icon: User },
     { id: "browse", label: t("nav.browseCrops"), icon: ShoppingCart },
     { id: "cart", label: t("nav.cart"), icon: ShoppingCart },
     { id: "history", label: t("nav.orderHistory"), icon: History },
@@ -49,7 +63,9 @@ export default function ConsumerDashboard({ onLogout, onSwitchRole }: ConsumerDa
             <Leaf className="w-8 h-8" />
             <h1 className="text-xl font-bold">Smart Farmer</h1>
           </div>
-          <p className="text-emerald-200 text-sm mt-2">{t("nav.consumerDashboard")}</p>
+          <p className="text-emerald-200 text-sm mt-2">
+            {t("nav.consumerDashboard")}
+          </p>
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
@@ -76,15 +92,19 @@ export default function ConsumerDashboard({ onLogout, onSwitchRole }: ConsumerDa
           <div className="mb-3">
             <LanguageSwitcher />
           </div>
+
+          {/* ✅ Switch Role */}
           <button
-            onClick={onSwitchRole}
+            onClick={handleSwitchRoleClick}
             className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-emerald-100 hover:bg-emerald-800 transition-all"
           >
             <Settings className="w-5 h-5" />
             <span className="text-sm">{t("nav.switchRole")}</span>
           </button>
+
+          {/* ✅ Logout */}
           <button
-            onClick={onLogout}
+            onClick={handleLogoutClick}
             className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-emerald-100 hover:bg-red-600 transition-all"
           >
             <LogOut className="w-5 h-5" />
@@ -96,9 +116,13 @@ export default function ConsumerDashboard({ onLogout, onSwitchRole }: ConsumerDa
       {/* Main Area */}
       <div className="flex-1 overflow-auto p-8">
         {activeSection === "home" && <ConsumerDashboardHome />}
-        {activeSection === "profile" && <ConsumerProfile />} {/* 🔥 NEW */}
-        {activeSection === "browse" && <BrowseCrops onAddToCart={setCartItems} cartItems={cartItems} />}
-        {activeSection === "cart" && <CartCheckout cartItems={cartItems} />}
+        {activeSection === "profile" && <ConsumerProfile />}
+        {activeSection === "browse" && (
+          <BrowseCrops onAddToCart={setCartItems} cartItems={cartItems} />
+        )}
+        {activeSection === "cart" && (
+          <CartCheckout cartItems={cartItems} />
+        )}
         {activeSection === "history" && <OrderHistory />}
         {activeSection === "ratings" && <FarmerRatings />}
       </div>
